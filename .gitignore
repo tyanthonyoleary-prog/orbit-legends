@@ -1,0 +1,16 @@
+# Built Roblox place files — rebuild from src/ with `build-and-open.cmd`
+*.rbxlx
+*.rbxl
+*.rbxlx.lock
+
+# Roblox Studio auto-recovery / temp
+*AutoSave*
+*.rbxc
+
+# Machine-specific MCP config (contains absolute paths)
+.mcp.json
+
+# OS cruft
+Thumbs.db
+.DS_Store
+desktop.ini

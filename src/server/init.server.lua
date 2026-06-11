@@ -1,0 +1,24 @@
+-- Orbit Legends — server bootstrap.
+-- Initialization order matters: remotes and data first, then the world,
+-- then the gameplay systems that depend on both.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+require(ReplicatedStorage:WaitForChild("Shared").Remotes) -- creates remote instances
+
+local DataSystem = require(script.DataSystem)
+local WorldGen = require(script.WorldGen)
+local ShipSystem = require(script.ShipSystem)
+local MiningSystem = require(script.MiningSystem)
+local CombatSystem = require(script.CombatSystem)
+local EconomySystem = require(script.EconomySystem)
+local UpgradeSystem = require(script.UpgradeSystem)
+
+DataSystem.init()
+WorldGen.init()
+ShipSystem.init()
+MiningSystem.init()
+CombatSystem.init()
+EconomySystem.init()
+UpgradeSystem.init()
+
+print("[Orbit Legends] Server initialized.")

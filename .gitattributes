@@ -1,0 +1,9 @@
+# Normalize line endings: store as LF in the repo, check out native per-OS.
+# Keeps diffs clean when collaborators are on Windows + macOS.
+* text=auto
+
+# Treat these as binary (never line-ending-normalize or try to merge).
+*.exe   binary
+*.rbxlx binary
+*.rbxl  binary
+*.png   binary
