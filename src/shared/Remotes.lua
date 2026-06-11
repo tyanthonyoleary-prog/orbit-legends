@@ -16,6 +16,17 @@ local EVENTS = {
 	"Notify",         -- server -> client (message, kind: "info"|"good"|"bad")
 	"ProfileChanged", -- server -> client (snapshot table)
 	"MiningState",    -- server -> client ({ active: bool, resource: string? })
+
+	-- Home bases
+	"UpgradeBase",       -- client -> server: level up the fortress
+	"BuildModule",       -- client -> server (moduleType): build into next free slot
+	"UpgradeModule",     -- client -> server (slotIndex)
+	"RemoveModule",      -- client -> server (slotIndex)
+	"SetBaseCosmetic",   -- client -> server (themeName)
+	"WarpToBase",        -- client -> server: teleport ship to your base
+	"WarpToStation",     -- client -> server: teleport ship back to the station
+	"RepairAtBase",      -- client -> server: refill shield+hull if docked with a Ship Port
+	"BuyBaseConvenience",-- client -> server (key): prompt a Robux convenience product
 }
 
 local UNRELIABLE_EVENTS = {

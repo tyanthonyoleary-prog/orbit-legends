@@ -206,4 +206,89 @@ GameConfig.Data = {
 	AutosaveSeconds = 120,
 }
 
+----------------------------------------------------------------
+-- HOME BASES
+-- A personal deep-space fortress that grows from a platform into a
+-- spherical battle-station. Power/defense is bought with CREDITS;
+-- Robux is reserved for convenience + cosmetics (no pay-to-win).
+----------------------------------------------------------------
+GameConfig.Base = {
+	MaxLevel = 10,
+	StartLevel = 1,
+
+	-- Credits to go from level L to L+1: LevelBaseCost * LevelCostGrowth^(L-1).
+	LevelBaseCost = 5000,
+	LevelCostGrowth = 1.6,
+	-- Some fortress levels also consume rare resources from your ship cargo.
+	LevelResourceGates = {
+		[4]  = { Titanium = 40 },
+		[6]  = { Crystal = 40 },
+		[8]  = { DarkMatter = 20 },
+		[10] = { DarkMatter = 60 },
+	},
+
+	-- Build slots unlocked at each fortress level (index = level).
+	SlotsPerLevel = { 2, 3, 4, 5, 6, 8, 10, 12, 14, 16 },
+	MaxExtraSlots = 6, -- extra slots buyable with Robux (convenience)
+
+	-- Fortress shield/defense from structural level alone (before modules).
+	LevelShield = { 200, 350, 550, 800, 1100, 1500, 2000, 2700, 3600, 5000 },
+	IndestructibleAtMax = true, -- a maxed fortress can't be raided (honored in phase 2)
+
+	-- Each player's base sits on a deep-space ring, angle derived from UserId,
+	-- well beyond the Deep Field (outer 10500).
+	WorldRadius = 14000,
+
+	-- Modules you build into slots. Power scales with credits, never Robux.
+	ModuleOrder = { "Turret", "ShieldGen", "ShipPort", "Radar", "Storage" },
+	Modules = {
+		Turret = {
+			displayName = "Cannon Turret", functional = true,
+			baseCost = 2500, costGrowth = 1.5, maxLevel = 8,
+			damage = 18, damageGrowth = 9, fireRate = 1.1, range = 950, -- auto-fires at hostiles
+		},
+		ShieldGen = {
+			displayName = "Shield Generator", functional = true,
+			baseCost = 3000, costGrowth = 1.55, maxLevel = 8,
+			shieldPerLevel = 600, -- adds to fortress defense rating
+		},
+		ShipPort = {
+			displayName = "Ship Port", functional = true,
+			baseCost = 4000, costGrowth = 1.6, maxLevel = 4,
+			-- lets the owner repair (refill shield + hull) while docked at base
+		},
+		Radar = {
+			displayName = "Radar Array", functional = false,
+			baseCost = 2000, costGrowth = 1.5, maxLevel = 5,
+		},
+		Storage = {
+			displayName = "Storage Silo", functional = false,
+			baseCost = 1500, costGrowth = 1.5, maxLevel = 6,
+			capacityPerLevel = 500, -- base resource storage (used by raiding, phase 2)
+		},
+	},
+
+	DefenseEnabled = true, -- turrets fire on hostile ships
+	DefenseTick = 0.5,     -- seconds between turret volleys
+	TurretBeam = "Railgun",-- reuse this weapon's beam color for turret FX
+	RepairRange = 350,     -- how close the owner must be to repair at a Ship Port
+
+	-- Cosmetic armor themes (Robux skins; "Default" is free). Visual only.
+	CosmeticThemes = {
+		Default = { armor = Color3.fromRGB(95, 105, 125),  trim = Color3.fromRGB(120, 200, 255) },
+		Crimson = { armor = Color3.fromRGB(120, 60, 60),   trim = Color3.fromRGB(255, 90, 80)   },
+		Void    = { armor = Color3.fromRGB(45, 40, 60),    trim = Color3.fromRGB(170, 90, 255)  },
+		Solar   = { armor = Color3.fromRGB(130, 95, 50),   trim = Color3.fromRGB(255, 180, 70)  },
+		Glacier = { armor = Color3.fromRGB(120, 140, 160), trim = Color3.fromRGB(150, 240, 255) },
+	},
+	CosmeticOrder = { "Default", "Crimson", "Void", "Solar", "Glacier" },
+
+	-- Robux convenience products. IDs stay 0 until you create them in the
+	-- Creator Dashboard (Monetization ▸ Developer Products) and paste them here.
+	-- Until then the in-game prompt is disabled (a friendly notice, never an error).
+	Convenience = {
+		ExtraSlot = { productId = 0, label = "+1 Build Slot", maxBuys = 6 },
+	},
+}
+
 return GameConfig

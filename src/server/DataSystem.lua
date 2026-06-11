@@ -42,6 +42,13 @@ local function makeTemplate()
 		securedCargo = {},
 		unsecuredCargo = {},
 		stats = { kills = 0, deaths = 0, mined = 0 },
+		base = {
+			level = GameConfig.Base.StartLevel,
+			slots = {},      -- string slot index -> { type = string, level = number }
+			cosmetic = "Default",
+			extraSlots = 0,  -- bought with Robux (convenience)
+			stored = {},     -- base resource storage (phase 2 raiding)
+		},
 	}
 end
 
@@ -110,6 +117,7 @@ local function snapshot(player: Player)
 		upgrades = data.upgrades,
 		stats = data.stats,
 		cargo = { secured = profile.cargo.secured, unsecured = profile.cargo.unsecured },
+		base = data.base,
 	}
 end
 
@@ -167,6 +175,8 @@ local function onPlayerAdded(player: Player)
 		lastSpawnAt = 0,
 		miningResource = nil,
 		muzzleIndex = 1,
+		baseModel = nil,   -- current home-base Model
+		lastRepairAt = 0,
 		canSave = loadedOk or not store, -- never overwrite data we failed to load
 	}
 	profiles[player] = profile

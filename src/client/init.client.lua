@@ -8,11 +8,13 @@ local Nameplates = require(script.Nameplates)
 local FlightController = require(script.FlightController)
 local CombatClient = require(script.CombatClient)
 local StationUI = require(script.StationUI)
+local BaseUI = require(script.BaseUI)
 
 HUD.init()
 Nameplates.init()
 FlightController.init()
 CombatClient.init()
 StationUI.init()
+BaseUI.init()
 
 print("[Orbit Legends] Client initialized.")
