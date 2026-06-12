@@ -6,7 +6,7 @@ local GameConfig = {}
 
 ----------------------------------------------------------------
 -- SHIPS
--- starter = selectable for free at the station.
+-- starter = selectable for free at your base.
 -- turnSpeed is used as the AlignOrientation responsiveness (≈3 sluggish, ≈10 snappy).
 ----------------------------------------------------------------
 GameConfig.ShipOrder = {
@@ -49,7 +49,7 @@ GameConfig.Ships = {
 		energyMax = 110, energyRegen = 12,
 	},
 
-	-- Unlockable ships (purchased with credits at the station).
+	-- Unlockable ships (purchased with credits at your base).
 	Interceptor = {
 		displayName = "Interceptor", role = "Hit-and-run striker",
 		starter = false, cost = 25000,
@@ -131,7 +131,7 @@ GameConfig.Resources = {
 	DarkMatter = { value = 80, color = Color3.fromRGB(140, 70, 220),  material = Enum.Material.Neon,  sizeMin = 8,  sizeMax = 18, yieldMin = 18, yieldMax = 45  },
 }
 
--- Rarer resources spawn farther from the safe zone. weights are relative.
+-- Rarer resources spawn farther from the world center. weights are relative.
 GameConfig.AsteroidFields = {
 	{ name = "Starter Belt",  innerRadius = 1400, outerRadius = 2700,  height = 240, count = 60, weights = { Iron = 70, Copper = 30 } },
 	{ name = "Frontier Belt", innerRadius = 4200, outerRadius = 6200,  height = 400, count = 50, weights = { Iron = 20, Copper = 30, Titanium = 35, Crystal = 15 } },
@@ -183,21 +183,16 @@ GameConfig.Upgrades = {
 }
 
 ----------------------------------------------------------------
--- ECONOMY / ZONES / WORLD / DATA
+-- ECONOMY / WORLD / DATA
+-- (Zone rules now live under GameConfig.Base — every safe zone and
+-- interaction range is anchored to a player's base, not a station.)
 ----------------------------------------------------------------
 GameConfig.Economy = {
 	StartingCredits = 250,
-	SellRange = 400, -- max distance from station center to sell / upgrade / launch
-}
-
-GameConfig.Zones = {
-	SafeRadius = 3000, -- no PvP damage inside this radius around the station (origin)
 }
 
 GameConfig.World = {
-	StationRadius = 110,
-	PadCount = 3,
-	KillFloorY = -1500, -- characters below this are rescued back to the station
+	KillFloorY = -1500, -- characters below this are rescued back to their base
 	StarCount = 300,
 }
 
@@ -207,19 +202,32 @@ GameConfig.Data = {
 }
 
 ----------------------------------------------------------------
--- HOME BASES
--- A personal deep-space fortress that grows from a platform into a
--- spherical battle-station. Power/defense is bought with CREDITS;
--- Robux is reserved for convenience + cosmetics (no pay-to-win).
+-- BASES
+-- Every player's Base is their home: trading, selling, ship
+-- upgrades, and launching all happen there. It grows from a flat
+-- platform into a spherical, planet-like station. Power/defense is
+-- bought with CREDITS; Robux is convenience + cosmetics only.
 ----------------------------------------------------------------
 GameConfig.Base = {
 	MaxLevel = 10,
 	StartLevel = 1,
 
+	-- PLACEMENT: bases sit on a ring just outside the Starter Belt
+	-- (outer edge 2700), angle derived from UserId, so the
+	-- mine -> fly home -> sell loop stays tight.
+	RingRadius = 3000,
+	RingMinSeparation = 400, -- nudge along the ring if another live base is closer than this
+
+	-- ZONES: every base projects a no-PvP bubble; selling / upgrading /
+	-- buying / launching require being near YOUR OWN base.
+	SafeBubbleRadius = 1200,
+	InteractRange = 400,
+	WarpCombatLockSeconds = 10, -- can't warp home this soon after taking damage
+
 	-- Credits to go from level L to L+1: LevelBaseCost * LevelCostGrowth^(L-1).
 	LevelBaseCost = 5000,
 	LevelCostGrowth = 1.6,
-	-- Some fortress levels also consume rare resources from your ship cargo.
+	-- Some base levels also consume rare resources from your ship cargo.
 	LevelResourceGates = {
 		[4]  = { Titanium = 40 },
 		[6]  = { Crystal = 40 },
@@ -227,17 +235,28 @@ GameConfig.Base = {
 		[10] = { DarkMatter = 60 },
 	},
 
-	-- Build slots unlocked at each fortress level (index = level).
+	-- Build slots unlocked at each base level (index = level).
 	SlotsPerLevel = { 2, 3, 4, 5, 6, 8, 10, 12, 14, 16 },
 	MaxExtraSlots = 6, -- extra slots buyable with Robux (convenience)
 
-	-- Fortress shield/defense from structural level alone (before modules).
+	-- Base shield/defense from structural level alone (before modules).
 	LevelShield = { 200, 350, 550, 800, 1100, 1500, 2000, 2700, 3600, 5000 },
-	IndestructibleAtMax = true, -- a maxed fortress can't be raided (honored in phase 2)
+	IndestructibleAtMax = true, -- a maxed base can't be raided (honored in phase 2)
 
-	-- Each player's base sits on a deep-space ring, angle derived from UserId,
-	-- well beyond the Deep Field (outer 10500).
-	WorldRadius = 14000,
+	-- GEOMETRY (consumed by BaseBuilder; all decks/floors are walkable).
+	-- Lv1-3 flat platform, Lv4-7 grows a multi-floor tower,
+	-- Lv8-10 becomes an equatorial-trench sphere.
+	Geometry = {
+		DeckRadius = { 48, 52, 56, 62, 66, 70, 74, 78, 82, 86 }, -- per level
+		DeckThickness = 6,
+		TowerFloors = { 0, 0, 0, 1, 2, 2, 3, 3, 3, 3 },          -- stacked walkable floors per level
+		FloorHeight = 14,
+		SphereStartLevel = 8,
+		SphereRadius = { [8] = 58, [9] = 68, [10] = 78 },         -- dome radius once spherical
+		TrenchClearance = 12,                                     -- headroom over the deck inside the sphere
+		PadRadius = 18,                                           -- launch pad disc
+		LaunchHeight = 14,                                        -- ships spawn this far above the pad
+	},
 
 	-- Modules you build into slots. Power scales with credits, never Robux.
 	ModuleOrder = { "Turret", "ShieldGen", "ShipPort", "Radar", "Storage" },
@@ -268,10 +287,11 @@ GameConfig.Base = {
 		},
 	},
 
-	DefenseEnabled = true, -- turrets fire on hostile ships
-	DefenseTick = 0.5,     -- seconds between turret volleys
-	TurretBeam = "Railgun",-- reuse this weapon's beam color for turret FX
-	RepairRange = 350,     -- how close the owner must be to repair at a Ship Port
+	DefenseEnabled = true,   -- turrets retaliate against the owner's recent attacker
+	DefenseTick = 0.5,       -- seconds between turret volleys
+	TurretAggroSeconds = 25, -- turrets keep firing on an attacker for this long after the last hit
+	TurretBeam = "Railgun",  -- reuse this weapon's beam color for turret FX
+	RepairRange = 350,       -- how close the owner must be to repair at a Ship Port
 
 	-- Cosmetic armor themes (Robux skins; "Default" is free). Visual only.
 	CosmeticThemes = {
