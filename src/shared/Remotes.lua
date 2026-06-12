@@ -8,7 +8,7 @@ local RunService = game:GetService("RunService")
 local FOLDER_NAME = "OrbitRemotes"
 
 local EVENTS = {
-	"SelectShip",     -- client -> server (shipClass): launch/respawn a ship at the station
+	"SelectShip",     -- client -> server (shipClass): launch/respawn a ship at your base
 	"BuyShip",        -- client -> server (shipClass)
 	"FireWeapon",     -- client -> server (aimPoint: Vector3)
 	"SellAll",        -- client -> server
@@ -17,14 +17,13 @@ local EVENTS = {
 	"ProfileChanged", -- server -> client (snapshot table)
 	"MiningState",    -- server -> client ({ active: bool, resource: string? })
 
-	-- Home bases
-	"UpgradeBase",       -- client -> server: level up the fortress
+	-- Bases
+	"UpgradeBase",       -- client -> server: level up the base
 	"BuildModule",       -- client -> server (moduleType): build into next free slot
 	"UpgradeModule",     -- client -> server (slotIndex)
 	"RemoveModule",      -- client -> server (slotIndex)
 	"SetBaseCosmetic",   -- client -> server (themeName)
-	"WarpToBase",        -- client -> server: teleport ship to your base
-	"WarpToStation",     -- client -> server: teleport ship back to the station
+	"WarpToBase",        -- client -> server: teleport ship home to your base
 	"RepairAtBase",      -- client -> server: refill shield+hull if docked with a Ship Port
 	"BuyBaseConvenience",-- client -> server (key): prompt a Robux convenience product
 }
