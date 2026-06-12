@@ -1,9 +1,9 @@
 -- BaseSystem
--- Owns every player's home base: spawns it in deep space, validates all
--- build/upgrade/cosmetic actions (credits for power, Robux only for
--- convenience), runs turret defense against hostile ships, and handles
--- warping + repair. Raiding is intentionally left for phase 2 — this is the
--- single-player base foundation.
+-- Owns every player's Base — their home station: places it on the base ring,
+-- spawns their character there, validates all build/upgrade/cosmetic actions
+-- (credits for power, Robux only for convenience), runs turret defense
+-- against recent attackers, and handles warping home + repair. Raiding is
+-- intentionally left for phase 2.
 
 local CollectionService = game:GetService("CollectionService")
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -17,6 +17,7 @@ local Remotes = require(Shared.Remotes)
 local DataSystem = require(script.Parent.DataSystem)
 local ResourceSystem = require(script.Parent.ResourceSystem)
 local ShipSystem = require(script.Parent.ShipSystem)
+local WorldGen = require(script.Parent.WorldGen)
 local ZoneSystem = require(script.Parent.ZoneSystem)
 local BaseBuilder = require(script.Parent.BaseBuilder)
 
@@ -24,20 +25,15 @@ local BaseSystem = {}
 local cfg = GameConfig.Base
 local basesFolder
 
+-- userId -> CFrame resolved for this server session (ring spot + outward facing).
+local assignedCFrames: { [number]: CFrame } = {}
+
 ----------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------
 local function slotCount(base): number
 	local fromLevel = cfg.SlotsPerLevel[math.clamp(base.level, 1, cfg.MaxLevel)] or cfg.SlotsPerLevel[#cfg.SlotsPerLevel]
 	return fromLevel + math.min(base.extraSlots or 0, cfg.MaxExtraSlots)
-end
-
-local function usedSlots(base): number
-	local n = 0
-	for _ in pairs(base.slots or {}) do
-		n += 1
-	end
-	return n
 end
 
 local function nextFreeSlot(base): number?
@@ -82,10 +78,42 @@ local function hasModule(base, moduleType: string): boolean
 	return false
 end
 
--- Deterministic deep-space location per player (golden-angle spread on a ring).
-function BaseSystem.baseCFrame(userId: number): CFrame
-	local angle = (userId * 2.3999632) % (2 * math.pi)
-	return CFrame.new(math.cos(angle) * cfg.WorldRadius, 0, math.sin(angle) * cfg.WorldRadius)
+-- Ring spot per player: golden-angle spread from UserId, nudged along the
+-- ring until clear of every base already placed this session. The model's
+-- local -Z (launch side) faces away from the world center.
+local function resolvePlacement(player: Player): CFrame
+	local assigned = assignedCFrames[player.UserId]
+	if assigned then
+		return assigned
+	end
+
+	local angle = (player.UserId * 2.3999632) % (2 * math.pi)
+	local step = cfg.RingMinSeparation / cfg.RingRadius
+	for _ = 1, 64 do
+		local pos = Vector3.new(math.cos(angle) * cfg.RingRadius, 0, math.sin(angle) * cfg.RingRadius)
+		local clear = true
+		for userId, otherCf in pairs(assignedCFrames) do
+			if userId ~= player.UserId and (otherCf.Position - pos).Magnitude < cfg.RingMinSeparation then
+				clear = false
+				break
+			end
+		end
+		if clear then
+			local outward = Vector3.new(pos.X, 0, pos.Z).Unit
+			local cf = CFrame.lookAt(pos, pos + outward)
+			assignedCFrames[player.UserId] = cf
+			return cf
+		end
+		angle += step
+	end
+	-- Pathological fallback (ring effectively full): stack high above origin.
+	local cf = CFrame.new(0, 500 + player.UserId % 100, cfg.RingRadius)
+	assignedCFrames[player.UserId] = cf
+	return cf
+end
+
+function BaseSystem.getBaseCFrame(player: Player): CFrame
+	return resolvePlacement(player)
 end
 
 ----------------------------------------------------------------
@@ -97,6 +125,11 @@ local function despawnBase(player: Player)
 		profile.baseModel:Destroy()
 		profile.baseModel = nil
 	end
+end
+
+local function basePadCFrame(model: Model): CFrame?
+	local spawnPart = model:FindFirstChild("BaseSpawn", true)
+	return spawnPart and spawnPart.CFrame + Vector3.new(0, 6, 0) or nil
 end
 
 function BaseSystem.rebuild(player: Player)
@@ -116,9 +149,53 @@ function BaseSystem.rebuild(player: Player)
 	core:SetAttribute("ShieldRating", defenseRating(base))
 	CollectionService:AddTag(model, "Base")
 
-	model:PivotTo(BaseSystem.baseCFrame(player.UserId))
+	local cf = resolvePlacement(player)
+	model:PivotTo(cf)
 	model.Parent = basesFolder
 	profile.baseModel = model
+
+	-- Anchor the zone, the client UI, and respawning to the new model.
+	ZoneSystem.registerBase(player.UserId, cf.Position)
+	player:SetAttribute("BasePosition", cf.Position)
+	local spawnPart = model:FindFirstChild("BaseSpawn", true)
+	if spawnPart then
+		player.RespawnLocation = spawnPart
+	end
+
+	-- Keep anyone standing on the old structure from falling through the
+	-- rebuilt one (upgrades can change the floor under their feet).
+	local maxDeck = GameConfig.Base.Geometry.DeckRadius[cfg.MaxLevel] + 10
+	local deckTop = cf.Position.Y + GameConfig.Base.Geometry.DeckThickness / 2
+	for _, other in ipairs(Players:GetPlayers()) do
+		local char = other.Character
+		local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+		if char and humanoid and humanoid.Health > 0 and not humanoid.SeatPart then
+			local pos = char:GetPivot().Position
+			local horizontal = Vector3.new(pos.X - cf.Position.X, 0, pos.Z - cf.Position.Z)
+			if horizontal.Magnitude <= maxDeck then
+				char:PivotTo(CFrame.new(pos.X, deckTop + 4, pos.Z))
+			end
+		end
+	end
+end
+
+-- Wait for the profile, place + build the base, then spawn the character on
+-- it. CharacterAutoLoads is off, so nobody spawns before their home exists.
+local function ensureSpawned(player: Player)
+	local deadline = os.clock() + 15
+	while not DataSystem.get(player) and os.clock() < deadline do
+		task.wait(0.2)
+	end
+	if not player.Parent then
+		return
+	end
+	if DataSystem.get(player) then
+		BaseSystem.rebuild(player)
+	end
+	-- Spawn even if the base failed — the neutral fallback spawn catches them.
+	if not player.Character then
+		player:LoadCharacter()
+	end
 end
 
 ----------------------------------------------------------------
@@ -131,13 +208,13 @@ local function onUpgradeBase(player: Player)
 	end
 	local base = profile.data.base
 	if base.level >= cfg.MaxLevel then
-		DataSystem.notify(player, "Fortress is already at max level.", "info")
+		DataSystem.notify(player, "Your base is already at max level.", "info")
 		return
 	end
 
 	local cost = levelCost(base.level)
 	if profile.data.credits < cost then
-		DataSystem.notify(player, ("Need %d credits to upgrade the fortress."):format(cost), "bad")
+		DataSystem.notify(player, ("Need %d credits to upgrade your base."):format(cost), "bad")
 		return
 	end
 	local gate = cfg.LevelResourceGates[base.level + 1]
@@ -158,9 +235,9 @@ local function onUpgradeBase(player: Player)
 	BaseSystem.rebuild(player)
 	DataSystem.push(player)
 	if base.level >= cfg.MaxLevel then
-		DataSystem.notify(player, "FORTRESS MAXED — your base is now indestructible.", "good")
+		DataSystem.notify(player, "BASE MAXED — your base is now indestructible.", "good")
 	else
-		DataSystem.notify(player, ("Fortress upgraded to Lv.%d!"):format(base.level), "good")
+		DataSystem.notify(player, ("Base upgraded to Lv.%d!"):format(base.level), "good")
 	end
 end
 
@@ -172,7 +249,7 @@ local function onBuildModule(player: Player, moduleType)
 	local base = profile.data.base
 	local slot = nextFreeSlot(base)
 	if not slot then
-		DataSystem.notify(player, "No free build slots — upgrade the fortress for more.", "bad")
+		DataSystem.notify(player, "No free build slots — upgrade your base for more.", "bad")
 		return
 	end
 	local cost = moduleBuildCost(moduleType)
@@ -280,22 +357,14 @@ local function onWarpToBase(player: Player)
 	if not profile then
 		return
 	end
-	local basePos = BaseSystem.baseCFrame(player.UserId).Position
-	local shipPos = basePos + (Vector3.zero - basePos).Unit * 260 + Vector3.new(0, 40, 0)
-	if teleportShip(profile, CFrame.lookAt(shipPos, basePos)) then
-		DataSystem.notify(player, "Warped to your fortress.", "good")
-	else
-		DataSystem.notify(player, "Launch a ship first, then warp.", "bad")
-	end
-end
-
-local function onWarpToStation(player: Player)
-	local profile = DataSystem.get(player)
-	if not profile then
+	if os.clock() - (profile.lastHitAt or 0) < cfg.WarpCombatLockSeconds then
+		DataSystem.notify(player, "Can't warp home while under fire.", "bad")
 		return
 	end
-	if teleportShip(profile, CFrame.lookAt(Vector3.new(0, 18, 180), Vector3.new(0, 60, 600))) then
-		DataSystem.notify(player, "Warped to the station.", "good")
+	local basePos = resolvePlacement(player).Position
+	local shipPos = basePos + (Vector3.zero - basePos).Unit * 260 + Vector3.new(0, 40, 0)
+	if teleportShip(profile, CFrame.lookAt(shipPos, basePos)) then
+		DataSystem.notify(player, "Warped home.", "good")
 	else
 		DataSystem.notify(player, "Launch a ship first, then warp.", "bad")
 	end
@@ -316,7 +385,7 @@ local function onRepairAtBase(player: Player)
 		DataSystem.notify(player, "You need a ship to repair.", "bad")
 		return
 	end
-	local basePos = BaseSystem.baseCFrame(player.UserId).Position
+	local basePos = resolvePlacement(player).Position
 	if (ship.PrimaryPart.Position - basePos).Magnitude > cfg.RepairRange + 200 then
 		DataSystem.notify(player, "Fly closer to your Ship Port to repair.", "bad")
 		return
@@ -356,14 +425,16 @@ local function grantProduct(player: Player, productId: number): boolean
 		base.extraSlots = (base.extraSlots or 0) + 1
 		BaseSystem.rebuild(player)
 		DataSystem.push(player)
-		DataSystem.notify(player, "+1 build slot added to your fortress.", "good")
+		DataSystem.notify(player, "+1 build slot added to your base.", "good")
 		return true
 	end
 	return false
 end
 
 ----------------------------------------------------------------
--- Turret defense
+-- Turret defense — retaliation only. Inside the bubble PvP is already
+-- blocked, so turrets exist to chase off whoever just attacked the owner
+-- (anywhere in range), never to grief passers-by.
 ----------------------------------------------------------------
 local function applyTurretDamage(ownerPlayer: Player, ship: Model, dmg: number)
 	local victim = Players:GetPlayerByUserId(ship:GetAttribute("OwnerId") or 0)
@@ -395,6 +466,12 @@ local function defenseTick(dt: number)
 		if not (model and model.Parent and model.PrimaryPart) then
 			continue
 		end
+		local attacker = profile.lastAttacker
+		if not (attacker and attacker.Parent)
+			or os.clock() - (profile.lastAttackerAt or 0) > cfg.TurretAggroSeconds then
+			continue
+		end
+
 		local base = profile.data.base
 		local dps, range = 0, 0
 		for _, mod in pairs(base.slots or {}) do
@@ -408,19 +485,13 @@ local function defenseTick(dt: number)
 			continue
 		end
 
-		local basePos = model.PrimaryPart.Position
-		local target, targetDist = nil, nil
-		for other, op in pairs(DataSystem.all()) do
-			if other ~= owner and op.ship and op.ship.Parent and op.ship.PrimaryPart then
-				local shipPos = op.ship.PrimaryPart.Position
-				local d = (shipPos - basePos).Magnitude
-				if d <= range and not ZoneSystem.isSafe(shipPos) and (not targetDist or d < targetDist) then
-					target, targetDist = op.ship, d
-				end
-			end
+		local ap = DataSystem.get(attacker)
+		local target = ap and ap.ship
+		if not (target and target.Parent and target.PrimaryPart) then
+			continue
 		end
-
-		if target then
+		local basePos = model.PrimaryPart.Position
+		if (target.PrimaryPart.Position - basePos).Magnitude <= range then
 			applyTurretDamage(owner, target, dps * dt)
 			Remotes.get("BeamFX"):FireAllClients(basePos + Vector3.new(0, 10, 0), target.PrimaryPart.Position, cfg.TurretBeam)
 		end
@@ -428,18 +499,51 @@ local function defenseTick(dt: number)
 end
 
 ----------------------------------------------------------------
--- Lifecycle
+-- Rescue + spawn safety nets
 ----------------------------------------------------------------
-local function spawnWhenReady(player: Player)
-	local deadline = os.clock() + 15
-	while not DataSystem.get(player) and os.clock() < deadline do
-		task.wait(0.2)
-	end
-	if DataSystem.get(player) and player.Parent then
-		BaseSystem.rebuild(player)
-	end
+
+-- Teleport characters that fell off a deck back to their own base.
+local function startRescueLoop()
+	task.spawn(function()
+		while true do
+			task.wait(3)
+			for _, player in ipairs(Players:GetPlayers()) do
+				local char = player.Character
+				local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+				if char and humanoid and humanoid.Health > 0 and not humanoid.SeatPart then
+					local pos = char:GetPivot().Position
+					if pos.Y < GameConfig.World.KillFloorY then
+						local profile = DataSystem.get(player)
+						local home = profile and profile.baseModel and basePadCFrame(profile.baseModel)
+						char:PivotTo(home or WorldGen.getFallbackSpawnCFrame() + Vector3.new(0, 6, 0))
+					end
+				end
+			end
+		end
+	end)
 end
 
+-- If a character ever spawns away from its base (fallback spawn, or
+-- RespawnLocation misbehaving), bring it home once the base exists.
+local function watchSpawns(player: Player)
+	player.CharacterAdded:Connect(function(char)
+		task.wait(0.5)
+		local profile = DataSystem.get(player)
+		local model = profile and profile.baseModel
+		if not (model and model.Parent and char.Parent) then
+			return
+		end
+		local home = basePadCFrame(model)
+		local basePos = ZoneSystem.getBasePosition(player.UserId)
+		if home and basePos and (char:GetPivot().Position - basePos).Magnitude > cfg.InteractRange then
+			char:PivotTo(home)
+		end
+	end)
+end
+
+----------------------------------------------------------------
+-- Lifecycle
+----------------------------------------------------------------
 function BaseSystem.init()
 	basesFolder = Instance.new("Folder")
 	basesFolder.Name = "PlayerBases"
@@ -451,7 +555,6 @@ function BaseSystem.init()
 	Remotes.get("RemoveModule").OnServerEvent:Connect(onRemoveModule)
 	Remotes.get("SetBaseCosmetic").OnServerEvent:Connect(onSetCosmetic)
 	Remotes.get("WarpToBase").OnServerEvent:Connect(onWarpToBase)
-	Remotes.get("WarpToStation").OnServerEvent:Connect(onWarpToStation)
 	Remotes.get("RepairAtBase").OnServerEvent:Connect(onRepairAtBase)
 	Remotes.get("BuyBaseConvenience").OnServerEvent:Connect(onBuyConvenience)
 
@@ -464,12 +567,20 @@ function BaseSystem.init()
 	end
 
 	Players.PlayerAdded:Connect(function(player)
-		task.spawn(spawnWhenReady, player)
+		watchSpawns(player)
+		task.spawn(ensureSpawned, player)
 	end)
 	for _, player in ipairs(Players:GetPlayers()) do
-		task.spawn(spawnWhenReady, player)
+		watchSpawns(player)
+		task.spawn(ensureSpawned, player)
 	end
-	Players.PlayerRemoving:Connect(despawnBase)
+	Players.PlayerRemoving:Connect(function(player)
+		despawnBase(player)
+		ZoneSystem.unregisterBase(player.UserId)
+		assignedCFrames[player.UserId] = nil
+	end)
+
+	startRescueLoop()
 
 	task.spawn(function()
 		while true do
