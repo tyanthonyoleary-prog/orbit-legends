@@ -1,11 +1,11 @@
 -- WorldGen
--- Builds the space environment at runtime: lighting, starfield, the central
--- station (safe zone), launch pads, and the asteroid fields. Also handles
--- asteroid respawning and rescuing characters that fall into the void.
+-- Builds the space environment at runtime: lighting, starfield, and the
+-- asteroid fields, plus asteroid respawning. There is no central station —
+-- every player's home is their own Base (see BaseSystem). The world origin
+-- is just the center the belts ring around.
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("Shared").GameConfig)
@@ -15,7 +15,7 @@ local WorldGen = {}
 local rootFolder
 local asteroidFolder
 local shipsFolder
-local spawnLocation
+local fallbackSpawn
 
 local function basePart(props)
 	local part = Instance.new("Part")
@@ -70,113 +70,24 @@ local function buildStars()
 	stars.Parent = rootFolder
 end
 
-local function padPosition(index: number): Vector3
-	local angle = (index - 1) * (2 * math.pi / GameConfig.World.PadCount)
-	local r = GameConfig.World.StationRadius * 0.8
-	return Vector3.new(math.cos(angle) * r, 4.5, math.sin(angle) * r)
+-- A tiny neutral spawn high above the origin. Players normally spawn at
+-- their own Base via player.RespawnLocation; this exists so the world is
+-- never without a SpawnLocation (data failure, base build error).
+local function buildFallbackSpawn()
+	fallbackSpawn = Instance.new("SpawnLocation")
+	fallbackSpawn.Name = "FallbackSpawn"
+	fallbackSpawn.Size = Vector3.new(16, 1, 16)
+	fallbackSpawn.CFrame = CFrame.new(0, 300, 0)
+	fallbackSpawn.Anchored = true
+	fallbackSpawn.Neutral = true
+	fallbackSpawn.Transparency = 0.85
+	fallbackSpawn.Material = Enum.Material.Metal
+	fallbackSpawn.Color = Color3.fromRGB(100, 110, 130)
+	fallbackSpawn.Parent = rootFolder
 end
 
--- CFrame where a freshly launched ship appears: above pad, nose pointing away from the station.
-function WorldGen.getLaunchCFrame(index: number): CFrame
-	local pos = padPosition(((index - 1) % GameConfig.World.PadCount) + 1)
-	local outward = Vector3.new(pos.X, 0, pos.Z).Unit
-	local shipPos = pos + Vector3.new(0, 14, 0)
-	return CFrame.lookAt(shipPos, shipPos + outward)
-end
-
-local function buildStation()
-	local station = Instance.new("Folder")
-	station.Name = "Station"
-
-	local radius = GameConfig.World.StationRadius
-
-	local platform = basePart({
-		Name = "Platform",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(6, radius * 2, radius * 2),
-		CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Material = Enum.Material.Metal,
-		Color = Color3.fromRGB(70, 75, 90),
-	})
-	platform.Parent = station
-
-	local tower = basePart({
-		Name = "Beacon",
-		Size = Vector3.new(6, 60, 6),
-		CFrame = CFrame.new(0, 33, 0),
-		Material = Enum.Material.Neon,
-		Color = Color3.fromRGB(90, 200, 255),
-	})
-	local light = Instance.new("PointLight")
-	light.Range = 60
-	light.Brightness = 2
-	light.Color = tower.Color
-	light.Parent = tower
-	tower.Parent = station
-
-	local terminal = basePart({
-		Name = "TradeTerminal",
-		Size = Vector3.new(10, 8, 4),
-		CFrame = CFrame.new(0, 7, -40),
-		Material = Enum.Material.Neon,
-		Color = Color3.fromRGB(90, 255, 190),
-	})
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(260, 50)
-	gui.StudsOffset = Vector3.new(0, 7, 0)
-	gui.AlwaysOnTop = false
-	gui.MaxDistance = 600
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.Code
-	label.TextScaled = true
-	label.TextColor3 = Color3.fromRGB(120, 255, 200)
-	label.Text = "TRADE & UPGRADES  [T]"
-	label.Parent = gui
-	gui.Parent = terminal
-	terminal.Parent = station
-
-	for i = 1, GameConfig.World.PadCount do
-		local pad = basePart({
-			Name = "LaunchPad" .. i,
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(1.5, 36, 36),
-			CFrame = CFrame.new(padPosition(i)) * CFrame.Angles(0, 0, math.rad(90)),
-			Material = Enum.Material.Neon,
-			Color = Color3.fromRGB(255, 180, 70),
-		})
-		pad.Parent = station
-	end
-
-	spawnLocation = Instance.new("SpawnLocation")
-	spawnLocation.Name = "StationSpawn"
-	spawnLocation.Size = Vector3.new(14, 1, 14)
-	spawnLocation.CFrame = CFrame.new(0, 3.6, 30)
-	spawnLocation.Anchored = true
-	spawnLocation.Neutral = true
-	spawnLocation.Material = Enum.Material.Metal
-	spawnLocation.Color = Color3.fromRGB(100, 110, 130)
-	spawnLocation.Parent = station
-
-	-- Translucent boundary so players can see where the safe zone ends.
-	local safeR = GameConfig.Zones.SafeRadius
-	local boundary = basePart({
-		Name = "SafeZoneBoundary",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(safeR * 2, safeR * 2, safeR * 2),
-		CFrame = CFrame.new(0, 0, 0),
-		Material = Enum.Material.ForceField,
-		Color = Color3.fromRGB(80, 160, 255),
-		Transparency = 0.9,
-		CanCollide = false,
-		CanQuery = false,
-		CanTouch = false,
-		CastShadow = false,
-	})
-	boundary.Parent = station
-
-	station.Parent = rootFolder
+function WorldGen.getFallbackSpawnCFrame(): CFrame
+	return fallbackSpawn.CFrame
 end
 
 local function pickWeighted(weights: { [string]: number }): string
@@ -241,25 +152,6 @@ function WorldGen.getShipsFolder(): Folder
 	return shipsFolder
 end
 
--- Teleport characters that fell off the station / out of a ship back to safety.
-local function startRescueLoop()
-	task.spawn(function()
-		while true do
-			task.wait(3)
-			for _, player in ipairs(Players:GetPlayers()) do
-				local char = player.Character
-				local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-				if char and humanoid and humanoid.Health > 0 and not humanoid.SeatPart then
-					local pos = char:GetPivot().Position
-					if pos.Y < GameConfig.World.KillFloorY then
-						char:PivotTo(spawnLocation.CFrame + Vector3.new(0, 6, 0))
-					end
-				end
-			end
-		end
-	end)
-end
-
 function WorldGen.init()
 	rootFolder = Instance.new("Folder")
 	rootFolder.Name = "OrbitLegendsWorld"
@@ -275,15 +167,13 @@ function WorldGen.init()
 
 	setupLighting()
 	buildStars()
-	buildStation()
+	buildFallbackSpawn()
 
 	for fieldIndex, field in ipairs(GameConfig.AsteroidFields) do
 		for _ = 1, field.count do
 			WorldGen.spawnAsteroid(fieldIndex)
 		end
 	end
-
-	startRescueLoop()
 end
 
 return WorldGen

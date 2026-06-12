@@ -2,7 +2,13 @@
 -- Initialization order matters: remotes and data first, then the world,
 -- then the gameplay systems that depend on both.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Characters load only after BaseSystem has built the player's Base
+-- (it calls LoadCharacter) — so everyone wakes up at home.
+Players.CharacterAutoLoads = false
+
 require(ReplicatedStorage:WaitForChild("Shared").Remotes) -- creates remote instances
 
 local DataSystem = require(script.DataSystem)
