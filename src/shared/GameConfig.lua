@@ -252,7 +252,7 @@ GameConfig.Base = {
 		TowerFloors = { 0, 0, 0, 1, 2, 2, 3, 3, 3, 3 },          -- stacked walkable floors per level
 		FloorHeight = 14,
 		SphereStartLevel = 8,
-		SphereRadius = { [8] = 58, [9] = 68, [10] = 78 },         -- dome radius once spherical
+		SphereRadius = { [8] = 58, [9] = 64, [10] = 70 },         -- planet body radius once spherical (< DeckRadius so the walk ring survives)
 		TrenchClearance = 12,                                     -- headroom over the deck inside the sphere
 		PadRadius = 18,                                           -- launch pad disc
 		LaunchHeight = 14,                                        -- ships spawn this far above the pad
