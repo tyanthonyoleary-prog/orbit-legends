@@ -1,7 +1,7 @@
 -- BaseUI
--- Home-base management panel (toggle with B). Shows fortress level + defense,
--- build slots, and lets the player upgrade the fortress, build/upgrade/remove
--- modules, swap cosmetic themes, warp to/from the base, and repair. All actions
+-- Base management panel (toggle with B). Shows base level + defense,
+-- build slots, and lets the player upgrade the base, build/upgrade/remove
+-- modules, swap cosmetic themes, warp home, and repair. All actions
 -- are validated again on the server — this is display + intent only.
 
 local Players = game:GetService("Players")
@@ -124,7 +124,7 @@ local function refresh()
 	local credits = snapshot.credits or 0
 	local maxed = base.level >= Base.MaxLevel
 
-	headerLabel.Text = ("FORTRESS  Lv.%d/%d   •   Defense %s   •   Slots %d/%d%s")
+	headerLabel.Text = ("BASE  Lv.%d/%d   •   Defense %s   •   Slots %d/%d%s")
 		:format(base.level, Base.MaxLevel, comma(defenseRating(base)),
 			usedSlots(base), slotCount(base), maxed and "   ◈ INDESTRUCTIBLE" or "")
 
@@ -134,13 +134,13 @@ local function refresh()
 		end
 	end
 
-	-- Fortress upgrade
-	makeHeading(1, "— FORTRESS")
+	-- Base upgrade
+	makeHeading(1, "— BASE")
 	if maxed then
-		makeRow(2, "Fortress fully upgraded — base is indestructible.", "MAX", DIM, nil, false)
+		makeRow(2, "Base fully upgraded — indestructible.", "MAX", DIM, nil, false)
 	else
 		local cost = levelCost(base.level)
-		makeRow(2, ("Upgrade to Lv.%d  (expands the station, +slots, +defense)"):format(base.level + 1),
+		makeRow(2, ("Upgrade to Lv.%d  (expands your base, +slots, +defense)"):format(base.level + 1),
 			comma(cost) .. " CR", ACCENT, function()
 				Remotes.get("UpgradeBase"):FireServer()
 			end, credits >= cost)
@@ -148,11 +148,8 @@ local function refresh()
 
 	-- Travel + repair
 	makeHeading(3, "— TRAVEL")
-	makeRow(4, "Warp your ship out to your fortress", "WARP TO BASE", GOOD, function()
+	makeRow(4, "Warp your ship home to your base", "WARP HOME", GOOD, function()
 		Remotes.get("WarpToBase"):FireServer()
-	end, true)
-	makeRow(5, "Warp your ship back to the station", "TO STATION", GOOD, function()
-		Remotes.get("WarpToStation"):FireServer()
 	end, true)
 	makeRow(6, "Repair ship (needs a Ship Port, dock close)", "REPAIR", GOLD, function()
 		Remotes.get("RepairAtBase"):FireServer()

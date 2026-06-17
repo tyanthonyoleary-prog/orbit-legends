@@ -1,8 +1,8 @@
--- StationUI
--- Hangar (launch / buy ships) and Station (sell cargo / buy upgrades) panels.
--- Buttons appear when near the station; panels refresh from ProfileChanged
--- pushes. All purchases are validated again on the server — this UI is
--- display + intent only.
+-- DockUI
+-- Hangar (launch / buy ships) and Trade (sell cargo / buy upgrades) panels.
+-- Buttons appear when docked at your own base; panels refresh from
+-- ProfileChanged pushes. All purchases are validated again on the server —
+-- this UI is display + intent only.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,11 +18,11 @@ local ClientState = require(script.Parent.ClientState)
 
 local player = Players.LocalPlayer
 
-local StationUI = {}
+local DockUI = {}
 
 local snapshot = nil -- latest profile snapshot from the server
 local gui, hangarButton, stationButton, hangarPanel, stationPanel
-local nearStation = false
+local nearBase = false
 
 local PANEL_BG = Color3.fromRGB(12, 16, 26)
 local TEXT = Color3.fromRGB(220, 230, 245)
@@ -192,7 +192,7 @@ local upgradeRows = {}
 
 local function buildStation()
 	local panel, content
-	panel, content = makePanel("STATION — TRADE & UPGRADES", 420)
+	panel, content = makePanel("BASE — TRADE & UPGRADES", 420)
 	stationPanel = panel
 
 	local cargoRow = mk("Frame", {
@@ -326,8 +326,8 @@ local function togglePanel(panel: Frame)
 	end
 end
 
-function StationUI.init()
-	gui = mk("ScreenGui", { Name = "OrbitStationUI", ResetOnSpawn = false }, player:WaitForChild("PlayerGui"))
+function DockUI.init()
+	gui = mk("ScreenGui", { Name = "OrbitDockUI", ResetOnSpawn = false }, player:WaitForChild("PlayerGui"))
 
 	buildHangar()
 	buildStation()
@@ -340,7 +340,7 @@ function StationUI.init()
 		togglePanel(hangarPanel)
 	end)
 
-	stationButton = makeButton("STATION [T]", gui, {
+	stationButton = makeButton("TRADE [T]", gui, {
 		Position = UDim2.new(0, 146, 1, -54),
 		Size = UDim2.fromOffset(120, 36),
 		BackgroundColor3 = GOOD,
@@ -354,9 +354,9 @@ function StationUI.init()
 		if gameProcessed then
 			return
 		end
-		if input.KeyCode == Enum.KeyCode.H and nearStation then
+		if input.KeyCode == Enum.KeyCode.H and nearBase then
 			togglePanel(hangarPanel)
-		elseif input.KeyCode == Enum.KeyCode.T and nearStation then
+		elseif input.KeyCode == Enum.KeyCode.T and nearBase then
 			togglePanel(stationPanel)
 		end
 	end)
@@ -378,18 +378,21 @@ function StationUI.init()
 		end
 	end)
 
-	-- Show station controls only when in range; hide panels when leaving.
+	-- Show dock controls only when near your own base; hide panels when leaving.
+	-- BasePosition is published by the server (BaseSystem) once the base exists.
 	task.spawn(function()
 		while true do
 			task.wait(1)
 			local char = player.Character
 			local pos = ClientState.ship and ClientState.ship.Parent and ClientState.ship:GetPivot().Position
 				or (char and char:GetPivot().Position)
-			local wasNear = nearStation
-			nearStation = pos ~= nil and pos.Magnitude <= GameConfig.Economy.SellRange
-			hangarButton.Visible = nearStation
-			stationButton.Visible = nearStation
-			if wasNear and not nearStation then
+			local basePos = player:GetAttribute("BasePosition")
+			local wasNear = nearBase
+			nearBase = pos ~= nil and basePos ~= nil
+				and (pos - basePos).Magnitude <= GameConfig.Base.InteractRange
+			hangarButton.Visible = nearBase
+			stationButton.Visible = nearBase
+			if wasNear and not nearBase then
 				hangarPanel.Visible = false
 				stationPanel.Visible = false
 				ClientState.menuOpen = false
@@ -398,4 +401,4 @@ function StationUI.init()
 	end)
 end
 
-return StationUI
+return DockUI
