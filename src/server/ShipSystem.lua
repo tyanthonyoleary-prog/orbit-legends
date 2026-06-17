@@ -22,7 +22,6 @@ local ZoneSystem = require(script.Parent.ZoneSystem)
 
 local ShipSystem = {}
 
-local padCounter = 0
 
 local function applyStats(ship: Model, stats)
 	ship:SetAttribute("MaxSpeed", stats.maxSpeed)
@@ -106,6 +105,14 @@ function ShipSystem.spawnShip(player: Player, shipClass: string)
 		return
 	end
 
+	-- Ships launch from the player's own pad, nose pointing out over the rim.
+	local baseModel = profile.baseModel
+	local launchPoint = baseModel and baseModel:FindFirstChild("LaunchPoint", true)
+	if not launchPoint then
+		DataSystem.notify(player, "Your base isn't ready yet.", "bad")
+		return
+	end
+
 	ShipSystem.despawn(player)
 
 	local stats = ShipStats.compute(shipClass, profile.data.upgrades)
@@ -119,8 +126,7 @@ function ShipSystem.spawnShip(player: Player, shipClass: string)
 	ship:SetAttribute("Hull", stats.maxHull)
 	ship:SetAttribute("Energy", stats.energyMax)
 
-	padCounter += 1
-	ship:PivotTo(WorldGen.getLaunchCFrame(padCounter))
+	ship:PivotTo(launchPoint.CFrame)
 	CollectionService:AddTag(ship, "Ship")
 	ship.Parent = WorldGen.getShipsFolder()
 
@@ -164,7 +170,7 @@ function ShipSystem.destroyShip(player: Player, killer: Player?)
 	local char = player.Character
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid.Health = 0 -- respawn back at the station
+		humanoid.Health = 0 -- respawns at their base
 	end
 	ship:Destroy()
 
@@ -195,8 +201,8 @@ local function onSelectShip(player: Player, shipClass)
 		return
 	end
 	local char = player.Character
-	if not char or not ZoneSystem.isNearStation(char:GetPivot().Position) then
-		DataSystem.notify(player, "You must be at the station to launch a ship.", "bad")
+	if not char or not ZoneSystem.isNearOwnBase(player, char:GetPivot().Position) then
+		DataSystem.notify(player, "You must be at your base to launch a ship.", "bad")
 		return
 	end
 

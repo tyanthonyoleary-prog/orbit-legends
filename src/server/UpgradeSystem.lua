@@ -33,8 +33,8 @@ local function onBuyUpgrade(player: Player, category)
 	local char = player.Character
 	local pos = (profile.ship and profile.ship.Parent and profile.ship:GetPivot().Position)
 		or (char and char:GetPivot().Position)
-	if not pos or not ZoneSystem.isNearStation(pos) then
-		DataSystem.notify(player, "You must be at the station to upgrade.", "bad")
+	if not pos or not ZoneSystem.isNearOwnBase(player, pos) then
+		DataSystem.notify(player, "You must be at your base to upgrade.", "bad")
 		return
 	end
 

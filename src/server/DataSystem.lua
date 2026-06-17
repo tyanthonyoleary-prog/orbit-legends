@@ -173,9 +173,11 @@ local function onPlayerAdded(player: Player)
 		lastFire = 0,
 		lastHitAt = 0,
 		lastSpawnAt = 0,
+		lastAttacker = nil,   -- Player who last damaged us (drives base turret retaliation)
+		lastAttackerAt = 0,   -- os.clock() of that last hit
 		miningResource = nil,
 		muzzleIndex = 1,
-		baseModel = nil,   -- current home-base Model
+		baseModel = nil,   -- current Base Model
 		lastRepairAt = 0,
 		canSave = loadedOk or not store, -- never overwrite data we failed to load
 	}

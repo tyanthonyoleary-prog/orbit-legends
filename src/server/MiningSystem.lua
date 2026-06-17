@@ -77,7 +77,7 @@ local function tick(dt: number)
 			setMiningState(player, profile, nil)
 			if not profile.notifiedFull then
 				profile.notifiedFull = true
-				DataSystem.notify(player, "Cargo hold full — return to the station to sell.", "info")
+				DataSystem.notify(player, "Cargo hold full — return to your base to sell.", "info")
 			end
 			continue
 		end

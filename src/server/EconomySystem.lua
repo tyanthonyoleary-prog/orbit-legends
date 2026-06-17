@@ -1,6 +1,6 @@
 -- EconomySystem
 -- Selling cargo for credits and purchasing new ships. All transactions are
--- validated server-side and require the player to be at the station.
+-- validated server-side and require the player to be at their own base.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -27,8 +27,8 @@ local function onSellAll(player: Player)
 		return
 	end
 	local pos = playerPosition(player, profile)
-	if not pos or not ZoneSystem.isNearStation(pos) then
-		DataSystem.notify(player, "You must be at the station to sell.", "bad")
+	if not pos or not ZoneSystem.isNearOwnBase(player, pos) then
+		DataSystem.notify(player, "You must be at your base to sell.", "bad")
 		return
 	end
 
@@ -55,8 +55,8 @@ local function onBuyShip(player: Player, shipClass)
 	end
 
 	local pos = playerPosition(player, profile)
-	if not pos or not ZoneSystem.isNearStation(pos) then
-		DataSystem.notify(player, "You must be at the station to buy ships.", "bad")
+	if not pos or not ZoneSystem.isNearOwnBase(player, pos) then
+		DataSystem.notify(player, "You must be at your base to buy ships.", "bad")
 		return
 	end
 	if profile.data.credits < shipCfg.cost then

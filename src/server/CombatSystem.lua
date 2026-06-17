@@ -37,13 +37,13 @@ local function applyDamage(attacker: Player, victimShip: Model, damage: number, 
 		return
 	end
 
-	-- Safe zones protect both sides: no griefing from or into the safe zone.
+	-- Safe bubbles protect both sides: no griefing from or into a base's bubble.
 	local victimPos = victimShip:GetPivot().Position
 	if ZoneSystem.isSafe(victimPos) or ZoneSystem.isSafe(attackerPos) then
 		local profile = DataSystem.get(attacker)
 		if profile and os.clock() - (profile.lastSafeNotify or 0) > 3 then
 			profile.lastSafeNotify = os.clock()
-			DataSystem.notify(attacker, "No combat in the safe zone.", "info")
+			DataSystem.notify(attacker, "No combat near home bases.", "info")
 		end
 		return
 	end
@@ -53,6 +53,9 @@ local function applyDamage(attacker: Player, victimShip: Model, damage: number, 
 		return
 	end
 	victimProfile.lastHitAt = os.clock()
+	-- Remember who hit us so the victim's base turrets can retaliate.
+	victimProfile.lastAttacker = attacker
+	victimProfile.lastAttackerAt = os.clock()
 
 	-- Shields absorb first, hull takes the remainder.
 	local shield = victimShip:GetAttribute("Shield") or 0
