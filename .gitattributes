@@ -6,4 +6,6 @@
 *.exe   binary
 *.rbxlx binary
 *.rbxl  binary
+*.rbxm  binary
+*.rbxmx binary
 *.png   binary
