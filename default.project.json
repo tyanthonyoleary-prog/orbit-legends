@@ -5,7 +5,7 @@
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
       "Shared": { "$path": "src/shared" },
-      "BaseAssets": { "$path": "assets/BaseAssets.rbxm" }
+      "BaseAssets": { "$path": "assets/BaseAssets.rbxmx" }
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",

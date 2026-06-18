@@ -109,6 +109,14 @@ function BaseBuilder.build(baseData, ownerName: string, slotCount: number): Mode
 	model.Name = "Base_" .. (ownerName or "Player")
 	local core = model.PrimaryPart
 
+	-- Strip the template's static built-in nameplate ("Cygnus's Outpost") so
+	-- only our dynamic per-player/tier plate shows.
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BillboardGui") then
+			d:Destroy()
+		end
+	end
+
 	-- The per-player spawn is assigned via player.RespawnLocation; don't let the
 	-- template's spawn pull in random joiners.
 	local spawnPart = model:FindFirstChild("BaseSpawn", true)
