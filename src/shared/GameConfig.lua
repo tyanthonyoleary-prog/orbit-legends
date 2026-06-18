@@ -243,19 +243,24 @@ GameConfig.Base = {
 	LevelShield = { 200, 350, 550, 800, 1100, 1500, 2000, 2700, 3600, 5000 },
 	IndestructibleAtMax = true, -- a maxed base can't be raided (honored in phase 2)
 
-	-- GEOMETRY (consumed by BaseBuilder; all decks/floors are walkable).
-	-- Lv1-3 flat platform, Lv4-7 grows a multi-floor tower,
-	-- Lv8-10 becomes an equatorial-trench sphere.
+	-- GEOMETRY — the base is built by cloning a detailed prefab
+	-- (ReplicatedStorage.BaseAssets.BaseTemplate) and scaling it with level.
+	-- Module prefabs (ModuleTurret, ModuleRadar) are cloned onto slots.
 	Geometry = {
-		DeckRadius = { 48, 52, 56, 62, 66, 70, 74, 78, 82, 86 }, -- per level
-		DeckThickness = 6,
-		TowerFloors = { 0, 0, 0, 1, 2, 2, 3, 3, 3, 3 },          -- stacked walkable floors per level
-		FloorHeight = 14,
-		SphereStartLevel = 8,
-		SphereRadius = { [8] = 58, [9] = 64, [10] = 70 },         -- planet body radius once spherical (< DeckRadius so the walk ring survives)
-		TrenchClearance = 12,                                     -- headroom over the deck inside the sphere
-		PadRadius = 18,                                           -- launch pad disc
-		LaunchHeight = 14,                                        -- ships spawn this far above the pad
+		TemplateScaleMin = 0.6,  -- model scale at Lv.1
+		TemplateScaleMax = 1.0,  -- model scale at Lv.MaxLevel
+		LaunchHeight = 18,       -- ships spawn this far above the pad mark
+		ModuleScale = 0.8,       -- player-built module prefabs scale on the deck ring
+		ModuleRingPad = 14,      -- inset from the base footprint for the slot ring
+		-- Fallback platform (used only if the prefab fails to load).
+		FallbackDeckRadius = 60,
+		FallbackDeckThickness = 6,
+	},
+
+	-- Tier names per level (from the Base Progression reference board).
+	TierNames = {
+		"Outpost", "Outpost", "Stronghold", "Stronghold", "Fortress",
+		"Fortress", "Citadel", "Citadel", "Bastion", "Space Fortress",
 	},
 
 	-- Modules you build into slots. Power scales with credits, never Robux.

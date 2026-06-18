@@ -99,8 +99,11 @@ local function resolvePlacement(player: Player): CFrame
 			end
 		end
 		if clear then
+			-- Orient so the base's local +Z (the PadMark / launch side) faces
+			-- away from the world center: lookAt's -Z points at (pos - outward),
+			-- which puts +Z = outward.
 			local outward = Vector3.new(pos.X, 0, pos.Z).Unit
-			local cf = CFrame.lookAt(pos, pos + outward)
+			local cf = CFrame.lookAt(pos, pos - outward)
 			assignedCFrames[player.UserId] = cf
 			return cf
 		end
@@ -163,17 +166,21 @@ function BaseSystem.rebuild(player: Player)
 	end
 
 	-- Keep anyone standing on the old structure from falling through the
-	-- rebuilt one (upgrades can change the floor under their feet).
-	local maxDeck = GameConfig.Base.Geometry.DeckRadius[cfg.MaxLevel] + 10
-	local deckTop = cf.Position.Y + GameConfig.Base.Geometry.DeckThickness / 2
-	for _, other in ipairs(Players:GetPlayers()) do
-		local char = other.Character
-		local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-		if char and humanoid and humanoid.Health > 0 and not humanoid.SeatPart then
-			local pos = char:GetPivot().Position
-			local horizontal = Vector3.new(pos.X - cf.Position.X, 0, pos.Z - cf.Position.Z)
-			if horizontal.Magnitude <= maxDeck then
-				char:PivotTo(CFrame.new(pos.X, deckTop + 4, pos.Z))
+	-- rebuilt one (upgrades can change the floor under their feet): anyone near
+	-- the base footprint gets lifted back onto the spawn pad.
+	local _, sz = model:GetBoundingBox()
+	local footprint = math.max(sz.X, sz.Z) / 2 + 10
+	local home = basePadCFrame(model)
+	if home then
+		for _, other in ipairs(Players:GetPlayers()) do
+			local char = other.Character
+			local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+			if char and humanoid and humanoid.Health > 0 and not humanoid.SeatPart then
+				local pos = char:GetPivot().Position
+				local horizontal = Vector3.new(pos.X - cf.Position.X, 0, pos.Z - cf.Position.Z)
+				if horizontal.Magnitude <= footprint then
+					char:PivotTo(home)
+				end
 			end
 		end
 	end
